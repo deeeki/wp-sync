@@ -2,11 +2,11 @@
 /*
 Plugin Name: WP Sync
 Plugin URI: https://github.com/deeeki/wp-sync
-Description: Synchronize WordPress resources (DB &amp; files). ***UNIX based system only.***
-Version: 0.1.1
+Description: Synchronize WordPress resources (DB & files). ***UNIX based system only.***
+Version: 0.2.0
 Author: deeeki
 Author URI: http://deeeki.com/
-Revision Date: Nov. 11, 2010
+Revision Date: Nov. 18, 2010
 Tested up to: WordPress 3.0.1
 */
 
@@ -20,13 +20,20 @@ if (is_admin()) {
 	add_action('deactivate_' . plugin_basename(__FILE__), array('WpSyncAdmin', 'deactivate'));
 }
 
+/**
+ * sync class
+ */
 class WpSync {
 	const QUOTE = "'";
 
 	public $based = array();
 	public $options = array();
+	public $action = 'index';
 	public $cmd_error = '';
 
+	/**
+	 * constructor
+	 */
 	public function __construct() {
 		$this->based['src_dir'] = ABSPATH;
 		$this->based['src_url'] = preg_replace('!https?://!', '', get_bloginfo('url'));
@@ -37,12 +44,18 @@ class WpSync {
 		add_action('admin_menu', array($this, 'add_admin_menu'));
 	}
 
+	/**
+	 * insert into Tool menu
+	 */
 	public function add_admin_menu() {
 		$ret = add_management_page('WP Sync', 'WP Sync', 'administrator', plugin_basename(__FILE__), array($this, 'action'));
 	}
 
+	/**
+	 * action dispacher
+	 */
 	public function action() {
-		$action = (isset($_POST['action'])) ? $_POST['action'] : 'display';
+		$action = (isset($_REQUEST['action'])) ? $_REQUEST['action'] : 'index';
 		if (method_exists($this, $action)) {
 			$this->$action();
 		}
@@ -51,17 +64,44 @@ class WpSync {
 		}
 	}
 
-	public function display() {
+	/**
+	 * render header
+	 */
+	public function head() {
+		$setting_class = $sync_class = '';
+		if ($_REQUEST['action'] == 'view' || $_REQUEST['action'] == 'sync') {
+			$sync_class = 'class="current"';
+		}
+		else {
+			$setting_class = 'class="current"';
+		}
 ?>
-<div class="wrap">
 	<h2>WP Sync</h2>
+
 	<?php if (isset($this->message)): ?>
 	<div id="message" class="updated fade"><p><font color="green"><?php echo $this->message ?></font></p></div>
 	<?php endif; ?>
 	<?php if (isset($this->error)): ?>
 	<div id="error" class="updated fade"><p><font color="red"><?php echo $this->error ?></font></p></div>
 	<?php endif; ?>
-	<h3>Index</h3>
+	
+	<ul class="subsubsub">
+	<li><a href="<?php echo $_SERVER['PHP_SELF']; ?>?page=<?php echo plugin_basename(__FILE__); ?>" <?php echo $setting_class ?>>Setting</a> | </li>
+	<li><a href="<?php echo $_SERVER['PHP_SELF']; ?>?page=<?php echo plugin_basename(__FILE__); ?>&action=view" <?php echo $sync_class ?>>Sync</a></li>
+	</ul>
+	<div class="clear"></div>
+<?php
+	}
+
+	/**
+	 * render index(settings) page
+	 */
+	public function index() {
+?>
+<div class="wrap">
+	<?php $this->head() ?>
+
+	<h3>Setting</h3>
 	<form method="post" action="<?php echo $_SERVER['PHP_SELF']; ?>?page=<?php echo plugin_basename(__FILE__); ?>">
 	<table>
 	<?php foreach ($this->based as $key => $val): ?>
@@ -81,24 +121,17 @@ class WpSync {
 	</table>
 	<p class="submit">
 		<input type="hidden" name="action" value="update" />
-		<input type="submit" name="Submit" class="button" value="<?php _e('update settings'); ?>" />
+		<input type="submit" name="Submit" class="button" value="<?php _e('update setting'); ?>" />
 	</p>
 	</form>
-	<div class="submit">
-	<form method="post" action="<?php echo $_SERVER['PHP_SELF']; ?>?page=<?php echo plugin_basename(__FILE__); ?>">
-		<input type="hidden" name="action" value="preview" />
-		<input type="submit" name="Submit" class="button" value="<?php _e('preview commands'); ?>" />
-	</form>
-	<form method="post" action="<?php echo $_SERVER['PHP_SELF']; ?>?page=<?php echo plugin_basename(__FILE__); ?>">
-		<input type="hidden" name="action" value="sync" />
-		<input type="submit" name="Submit" class="button" value="<?php _e('do sync'); ?>" />
-	</form>
-	</div>
 </div>
 
 <?php
 	}
 
+	/**
+	 * process updating settings and render index page
+	 */
 	public function update() {
 		if (isset($_POST)) {
 			foreach($_POST as $key => $val) {
@@ -110,20 +143,37 @@ class WpSync {
 			update_option('wpsync_options', $this->options);
 			$this->message = 'Update Setting Successfully';
 		}
-		$this->display();
+		$this->index();
 	}
 
-	public function preview() {
+
+	/**
+	 * render preview page
+	 */
+	public function view() {
 		$commands = $this->_generate_commands();
 ?>
 <div class="wrap">
-	<h2>WP Sync</h2>
-	<h3>Preview</h3>
+	<?php $this->head() ?>
+	
+	<h3>Sync Preview</h3>
+	<div style="background-color: #ffffff; border: 1px solid #999999;">
 	<?php echo implode("<br />\n<br />\n", $commands); ?>
+	</div>
+	
+	<div class="submit">
+	<form method="post" action="<?php echo $_SERVER['PHP_SELF']; ?>?page=<?php echo plugin_basename(__FILE__); ?>">
+		<input type="hidden" name="action" value="sync" />
+		<input type="submit" name="Submit" class="button-primary" value="<?php _e('do sync'); ?>" />
+	</form>
+	</div>
 </div>
 <?php
 	}
 
+	/**
+	 * process synchronizing and render preview page
+	 */
 	public function sync() {
 		$commands = $this->_generate_commands();
 		$ret = $this->_execute_sync($commands);
@@ -133,34 +183,45 @@ class WpSync {
 		else {
 			$this->error = 'Sync Failed' . "<br />\n" . $this->cmd_error;
 		}
-		$this->display();
+		$this->view();
 	}
 
+	/**
+	 * generate sync commands
+	 */
 	protected function _generate_commands() {
 		$ts = date('Ymd_') . time();
 
-		$dump_file = WP_CONTENT_DIR . '/' . $ts . '.sql';
+		$dump_sql = WP_CONTENT_DIR . '/' . DB_NAME . '_' . $ts . '.sql';
 
 		$commands = array();
-		//dump database
-		$commands[] = 'mysqldump ' . DB_NAME . ' --host=' . DB_HOST . ' -u ' . DB_USER . ' --password=' . DB_PASSWORD . ' > ' . $dump_file;
+		//backup dest database
+		if ($this->options['backup_dir']) {
+			$backup_sql = $this->options['backup_dir'] . $this->options['dest_db'] . '_' . $ts . '.sql';
+			$commands[] = 'mysqldump ' . $this->options['dest_db'] . ' --host=' . DB_HOST . ' -u ' . DB_USER . ' --password=' . DB_PASSWORD . ' > ' . $backup_sql;
+		}
+		//dump src database
+		$commands[] = 'mysqldump ' . DB_NAME . ' --host=' . DB_HOST . ' -u ' . DB_USER . ' --password=' . DB_PASSWORD . ' > ' . $dump_sql;
 		//replace host
 		$src_url = preg_replace('!https?://!', '', get_bloginfo('url'));
-		$commands[] = 'sed -i ' . self::QUOTE . 's!' . $src_url . '!' . $this->options['dest_url'] . '!g' . self::QUOTE . ' ' . $dump_file;
+		$commands[] = 'sed -i ' . self::QUOTE . 's!' . $src_url . '!' . $this->options['dest_url'] . '!g' . self::QUOTE . ' ' . $dump_sql;
 		//replace filepath
-		$commands[] = 'sed -i ' . self::QUOTE . 's!' . ABSPATH . '!' . $this->options['dest_dir'] . '!g' . self::QUOTE . ' ' . $dump_file;
-		//restore database
-		$commands[] = 'mysql ' .$this->options['dest_db'] . ' --host=' . DB_HOST . ' -u ' . DB_USER . ' --password=' . DB_PASSWORD . ' < ' . $dump_file;
-		//remove dump file
-		$commands[] = 'rm -f ' . $dump_file;
+		$commands[] = 'sed -i ' . self::QUOTE . 's!' . ABSPATH . '!' . $this->options['dest_dir'] . '!g' . self::QUOTE . ' ' . $dump_sql;
+		//restore dest database
+		$commands[] = 'mysql ' . $this->options['dest_db'] . ' --host=' . DB_HOST . ' -u ' . DB_USER . ' --password=' . DB_PASSWORD . ' < ' . $dump_sql;
+		//remove dump sql file
+		$commands[] = 'rm -f ' . $dump_sql;
 		//sync files
 		$exclude = " --exclude='wp-config.php' ";
-		//$exclude .= "--exclude='wp-content/plugins/wp-sync/' ";
 		$backup_dir = ($this->options['backup_dir']) ? " --backup-dir='" . $this->options['backup_dir'] . $ts . "' " : '';
 		$commands[] = 'rsync -brz --delete ' . $exclude . $backup_dir . ABSPATH . ' ' . $this->options['dest_dir'] . ' >> ' . dirname(__FILE__) . '/rsync.log';
+
 		return $commands;
 	}
 
+	/**
+	 * execute sync commands
+	 */
 	protected function _execute_sync($commands = array()) {
 		if (!is_dir($this->options['dest_dir']) || !is_writable($this->options['dest_dir'])) {
 			return false;
@@ -187,6 +248,9 @@ class WpSync {
 	}
 }
 
+/**
+ * static functions when this plugin activated/deactivated
+ */
 class WpSyncAdmin {
 	public static function activate() {
 		$options = array();

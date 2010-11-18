@@ -170,9 +170,16 @@ class WpSync {
 		}
 
 		foreach ($commands as $command) {
-			passthru($command, $error);
-			if ($error) {
-				$this->cmd_error = $command . "<br />\n" . print_r($error, true);
+			exec($command, $output, $return_var);
+			if ($return_var) {
+				$error = array();
+				$error[] = '[command]';
+				$error[] = $command;
+				$error[] = '[output]';
+				$error[] = implode("\n", $output);
+				$error[] = '[return_var]';
+				$error[] = print_r($return_var, true);
+				$this->cmd_error = implode("<br />\n", $error);
 				return false;
 			}
 		}

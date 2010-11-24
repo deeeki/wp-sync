@@ -24,7 +24,8 @@ please take full responsibility for your actions
 
 -synchronize files without "wp-config.php"
 -rsync use "--delete" option
--backup dir get dest overwritten files and dest database dump
+-"backup dir" get dest overwritten files and dest database dump
+-if "excludes" exists, rsync use "--exclude-from" option
 -when rsync error, write "rsync.log" in this plugin dir
 
 
@@ -58,5 +59,6 @@ please take full responsibility for your actions
 -- --deleteオプションにより同期元に存在しないファイルは削除
 -バックアップディレクトリはrsyncで上書き/削除されたファイルの保存先
 --同期前の同期先DBのダンプも保存
+-"excludes"に入力がある場合、プラグインのディレクトリにファイルを保存して--exclude-fromオプションを利用
 -rsyncは(エラー)出力があった場合プラグインのディレクトリにrsync.logで残る
 

@@ -3,10 +3,10 @@
 Plugin Name: WP Sync
 Plugin URI: https://github.com/deeeki/wp-sync
 Description: Synchronize WordPress resources (DB & files). ***UNIX based system only.***
-Version: 0.2.0
+Version: 0.2.1
 Author: deeeki
 Author URI: http://deeeki.com/
-Revision Date: Nov. 18, 2010
+Revision Date: Nov. 24, 2010
 Tested up to: WordPress 3.0.1
 */
 
@@ -30,6 +30,7 @@ class WpSync {
 	public $options = array();
 	public $action = 'index';
 	public $cmd_error = '';
+	public $exclude_from = '';
 
 	/**
 	 * constructor
@@ -40,6 +41,7 @@ class WpSync {
 		$this->based['src_db'] = DB_NAME;
 
 		$this->options = get_option('wpsync_options');
+		$this->exclude_from = dirname(__FILE__) . '/excludes';
 
 		add_action('admin_menu', array($this, 'add_admin_menu'));
 	}
@@ -84,7 +86,7 @@ class WpSync {
 	<?php if (isset($this->error)): ?>
 	<div id="error" class="updated fade"><p><font color="red"><?php echo $this->error ?></font></p></div>
 	<?php endif; ?>
-	
+
 	<ul class="subsubsub">
 	<li><a href="<?php echo $_SERVER['PHP_SELF']; ?>?page=<?php echo plugin_basename(__FILE__); ?>" <?php echo $setting_class ?>>Setting</a> | </li>
 	<li><a href="<?php echo $_SERVER['PHP_SELF']; ?>?page=<?php echo plugin_basename(__FILE__); ?>&action=view" <?php echo $sync_class ?>>Sync</a></li>
@@ -114,7 +116,12 @@ class WpSync {
 	<tr>
 	<th><?php echo $key ?></th>
 	<td>
+		<?php if ($key == 'excludes'): ?>
+		<textarea name="opt_<?php echo $key ?>" cols="64" rows="5"><?php echo $val ?></textarea><br />
+		(input exclude path with new line that used --exclude-from option)
+		<?php else: ?>
 		<input type="text" name="opt_<?php echo $key ?>" value="<?php echo $val ?>" size="80" />
+		<?php endif; ?>
 	</td>
 	</tr>
 	<?php endforeach; ?>
@@ -135,9 +142,15 @@ class WpSync {
 	public function update() {
 		if (isset($_POST)) {
 			foreach($_POST as $key => $val) {
-				if (strpos($key, 'opt_') === 0) {
-					$option_key = str_replace('opt_', '', $key);
-					$this->options[$option_key] = $val;
+				if (strpos($key, 'opt_') !== 0) {
+					continue;
+				}
+				$option_key = str_replace('opt_', '', $key);
+				$this->options[$option_key] = $val;
+				if ($option_key == 'excludes') {
+					if (!file_put_contents($this->exclude_from, $val)) {
+						$this->error = 'Cannot write ' . $this->exclude_from;
+					}
 				}
 			}
 			update_option('wpsync_options', $this->options);
@@ -155,12 +168,12 @@ class WpSync {
 ?>
 <div class="wrap">
 	<?php $this->head() ?>
-	
+
 	<h3>Sync Preview</h3>
 	<div style="background-color: #ffffff; border: 1px solid #999999;">
 	<?php echo implode("<br />\n<br />\n", $commands); ?>
 	</div>
-	
+
 	<div class="submit">
 	<form method="post" action="<?php echo $_SERVER['PHP_SELF']; ?>?page=<?php echo plugin_basename(__FILE__); ?>">
 		<input type="hidden" name="action" value="sync" />
@@ -213,8 +226,12 @@ class WpSync {
 		$commands[] = 'rm -f ' . $dump_sql;
 		//sync files
 		$exclude = " --exclude='wp-config.php' ";
+		$exclude_from = '';
+		if ($this->options['excludes'] && is_readable($this->exclude_from)) {
+			$exclude_from = " --exclude-from='" . $this->exclude_from . "' ";
+		}
 		$backup_dir = ($this->options['backup_dir']) ? " --backup-dir='" . $this->options['backup_dir'] . $ts . "' " : '';
-		$commands[] = 'rsync -brz --delete ' . $exclude . $backup_dir . ABSPATH . ' ' . $this->options['dest_dir'] . ' >> ' . dirname(__FILE__) . '/rsync.log';
+		$commands[] = 'rsync -brz --delete ' . $exclude . $exclude_from . $backup_dir . ABSPATH . ' ' . $this->options['dest_dir'] . ' >> ' . dirname(__FILE__) . '/rsync.log';
 
 		return $commands;
 	}
@@ -258,6 +275,11 @@ class WpSyncAdmin {
 		$options['dest_url'] = preg_replace('!https?://!', '', get_bloginfo('url'));
 		$options['dest_db'] = DB_NAME;
 		$options['backup_dir'] = '';
+		$options['excludes'] = implode("\n", array(
+			'- .svn',
+			'- .htaccess',
+			'- wp-content/backup-db', //for WP-DBManager
+		));
 
 		add_option('wpsync_options', $options);
 	}

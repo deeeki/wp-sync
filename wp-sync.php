@@ -43,7 +43,8 @@ class WpSync {
 		$this->options = get_option('wpsync_options');
 		$this->exclude_from = dirname(__FILE__) . '/excludes';
 
-		add_action('admin_menu', array($this, 'add_admin_menu'));
+		add_action('admin_menu', array(&$this, 'add_admin_menu'));
+		add_filter('plugin_action_links', array(&$this, 'add_plugin_action_links'), 10, 2);
 	}
 
 	/**
@@ -54,7 +55,18 @@ class WpSync {
 	}
 
 	/**
-	 * action dispacher
+	 * insert setting link into plugin page
+	 */
+	public function add_plugin_action_links($links, $file) {
+		if ($file == plugin_basename(__FILE__)) {
+			$setting_link = '<a href="tools.php?page=' . plugin_basename(__FILE__) . '">' . __('Settings') . '</a>';
+			array_unshift($links, $setting_link);
+		}
+		return $links;
+	}
+
+	/**
+	 * action dispatcher
 	 */
 	public function action() {
 		$action = (isset($_REQUEST['action'])) ? $_REQUEST['action'] : 'index';
@@ -117,10 +129,10 @@ class WpSync {
 	<th><?php echo $key ?></th>
 	<td>
 		<?php if ($key == 'excludes'): ?>
-		<textarea name="opt_<?php echo $key ?>" cols="64" rows="5"><?php echo $val ?></textarea><br />
-		(input exclude path with new line that used --exclude-from option)
+		<textarea name="opt_<?php echo $key ?>" cols="64" rows="5"><?php echo esc_html($val) ?></textarea><br />
+		<?php _e('(input exclude path with new line that used --exclude-from option)') ?>
 		<?php else: ?>
-		<input type="text" name="opt_<?php echo $key ?>" value="<?php echo $val ?>" size="80" />
+		<input type="text" name="opt_<?php echo $key ?>" value="<?php echo esc_html($val) ?>" size="80" />
 		<?php endif; ?>
 	</td>
 	</tr>
@@ -146,11 +158,14 @@ class WpSync {
 					continue;
 				}
 				$option_key = str_replace('opt_', '', $key);
-				$this->options[$option_key] = $val;
 				if ($option_key == 'excludes') {
+					$this->options[$option_key] = $val;
 					if (!file_put_contents($this->exclude_from, $val)) {
 						$this->error = 'Cannot write ' . $this->exclude_from;
 					}
+				}
+				else {
+					$this->options[$option_key] = escapeshellcmd(str_replace("\0", '', $val));
 				}
 			}
 			update_option('wpsync_options', $this->options);
@@ -171,7 +186,7 @@ class WpSync {
 
 	<h3>Sync Preview</h3>
 	<div style="background-color: #ffffff; border: 1px solid #999999;">
-	<?php echo implode("<br />\n<br />\n", $commands); ?>
+	<pre style="white-space: pre-wrap; word-wrap: break-word;"><?php echo esc_html(implode("\n\n", $commands)); ?></pre>
 	</div>
 
 	<div class="submit">

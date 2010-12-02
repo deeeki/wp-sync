@@ -3,10 +3,10 @@
 Plugin Name: WP Sync
 Plugin URI: https://github.com/deeeki/wp-sync
 Description: Synchronize WordPress resources (DB & files). ***UNIX based system only.***
-Version: 0.2.1
+Version: 0.2.2
 Author: deeeki
 Author URI: http://deeeki.com/
-Revision Date: Nov. 24, 2010
+Revision Date: Dec. 3, 2010
 Tested up to: WordPress 3.0.1
 */
 
